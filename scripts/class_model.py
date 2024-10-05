@@ -33,25 +33,26 @@ class Model:
         kappa = model_params[0]
         theta = model_params[1]
         sigma = model_params[2]
+        r0    = model_params[3]
 
         # Market data
         maturities = market_data.index
-        zero_coupon_prices = pd.Series(index=maturities)
-
+        
+        list_zc_prices = []
         # Vasicek features
-        for T in maturities:
-            # Initial interest rates
-            r0 = market_data.loc[T]
-            
+        for T in maturities:            
             # Paramètres du modèle de Vasicek pour calculer le prix du zéro-coupon
             B = (1 - np.exp(-kappa * T)) / kappa
             A = (theta - (sigma**2) / (2 * kappa**2)) * (B - T) - (sigma**2) * (B**2) / (4 * kappa)
             
             # Calcul du prix du zéro-coupon sous le modèle de Vasicek
-            zero_coupon_price = np.exp(A - B * r0)
-            zero_coupon_prices[T] = zero_coupon_price
+            zc_price = np.exp(A - B * r0)
+            list_zc_prices.append(zc_price)
 
-        return zero_coupon_prices
+        #print(zero_coupon_prices)
+        zc_df = pd.Series(data = list_zc_prices, index=maturities)
+
+        return zc_df
     
     def blackscholes_pricing(self, model_params, market_data):
         """
@@ -84,7 +85,7 @@ class Model:
 
         return price
 
-    def vasicek_projection(self, model_params, Tmax, N, spot_rates, dt = 1 / 252):
+    def vasicek_projection(self, model_params, Tmax, N, spot_rates, dt = 1 / 12):
         """
         Projette les taux d'intérêt sous le modèle de Vasicek pour des maturités allant de 1 à 40 ans, sur 1000 simulations.
         
@@ -130,7 +131,7 @@ class Model:
             
             # Création d'un DataFrame : chaque ligne est une simulation, chaque colonne est un pas de temps
             df_paths = pd.DataFrame(paths, columns=np.linspace(0, Tmax, nb_steps + 1), index = range(1, N + 1))
-            df_paths = df_paths[range(0, T + 1)]
+            df_paths = df_paths[range(0, Tmax + 1)]
 
             # Vasicek parameters
             B = (1 - np.exp(-kappa * T)) / kappa
@@ -219,8 +220,19 @@ class Model:
         match self.name:
             case 'Black-Scholes':
                 initial_guess = [0.2]
+                bounds_temp = [(0, None)]
             case 'Vasicek':
-                initial_guess = [0.15, 0.05, 0.02]
+                initial_guess = [0.1, 0.03, 0.02, 0.02]
+                bounds_temp = [(0.00001, 1), (-0.1, 0.1), (0.00001, 0.5), (0, 0.1)]
+                market_data = market_data.loc[[1, 2, 5, 10, 20, 30]]
+                # Temporaire A SUPPRIMER
+                '''
+                self.parameters['kappa'] = initial_guess[0]
+                self.parameters['theta'] = initial_guess[1]
+                self.parameters['sigma'] = initial_guess[2]
+                # Fin du truc à supprimer!!!
+                return self.parameters
+                '''
             case _:    
                 raise NotImplementedError(f"La calibration n'est implémentée pour le modèle {self.name}.")
         
@@ -230,7 +242,7 @@ class Model:
             return np.sum((market_data['market_price'] - model_prices) ** 2)
                 
         # Minimisation de l'écart entre les prix observés et modélisés
-        result = minimize(objective_function, initial_guess, method='Nelder-Mead')
+        result = minimize(objective_function, initial_guess, method='Nelder-Mead', bounds = bounds_temp)
         
         # Mise à jour des paramètres
         match self.name:
@@ -240,10 +252,16 @@ class Model:
                 self.parameters['kappa'] = result.x[0]
                 self.parameters['theta'] = result.x[1]
                 self.parameters['sigma'] = result.x[2]
+                self.parameters['r0']    = result.x[3]
             case _:
                 raise NotImplementedError(f"La calibration n'est implémentée pour le modèle {self.name}.")
 
         return self.parameters
+    
+
+def deflator_calculation(df):
+    df_adj = df.cumprod(axis = 1)
+    return df_adj / df
 
 def ir_to_ZCB(T, rfr):
     time_idx = range(1, T + 1, 1)
@@ -251,56 +269,3 @@ def ir_to_ZCB(T, rfr):
     zc_prices = [np.exp(- rfr_list[i] * (i + 1)) for i in range(len(rfr_list))]
     df = pd.DataFrame(zc_prices, index = time_idx, columns = ['market_price'])
     return df
-
-'''
-# ---------------------------------------------------------
-# Exemple illustratif - Calibration
-# ---------------------------------------------------------
-
-# Création d'un dataframe de données de marché fictives
-data = {
-    'S': [100, 100, 100],          # Prix sous-jacent (Spot)
-    'K': [95, 100, 105],           # Prix d'exercice (Strike)
-    'r': [0.05, 0.05, 0.05],       # Taux sans risque
-    'T': [1, 1, 1],                # Maturité (en années)
-    'option_type': ['call', 'call', 'call'],  # Type d'option (call)
-    'market_price': [10, 7, 4]     # Prix observés sur le marché pour les options
-}
-
-market_data = pd.DataFrame(data)
-
-# Instanciation du modèle Black-Scholes
-bs_model = Model(name="Black-Scholes")
-
-# Calibration de la volatilité implicite
-calibrated_sigma = bs_model.calibration(market_data)
-print(f"Volatilité implicite calibrée : {calibrated_sigma}")
-
-# Calcul du prix des options avec la volatilité calibrée
-model_params = {'sigma': calibrated_sigma}
-market_data['model_price'] = bs_model.derivative_pricing(model_params, market_data)
-print(market_data)
-
-# ---------------------------------------------------------
-# Exemple illustratif - Projection
-# ---------------------------------------------------------
-
-# Paramètres du modèle Black-Scholes
-model_params = {'sigma': 0.2}  # Volatilité de 20%
-
-# Instanciation du modèle Black-Scholes
-bs_model = Model(name="Black-Scholes")
-
-T = 50
-N = 1000
-
-df_projection = bs_model.blackscholes_projection("Black-Scholes", model_params, T, N)
-
-ref_data = [100 * 1.05 ** t for t in range(0, T + 1)]
-ref_data = pd.DataFrame(data = ref_data, index = df_projection.columns)
-
-mart_test = Martingality_test("index")
-test = mart_test.martingality_calcs(df_projection, ref_data, 0.01)
-
-print(test)
-'''

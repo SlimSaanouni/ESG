@@ -6,12 +6,6 @@ import plotly.graph_objects as go
 from scipy.interpolate import CubicSpline
 from scripts.class_model import ir_to_ZCB, ASSET_MODELS
 
-MODEL_TYPE      = { "Vasicek"       : "price",
-                    "G2++"          : "price",
-                    "Black-Scholes" : "index",
-                    "Dupire"        : "index",
-                    "Heston"        : "index"}
-
 class_list      = list(ASSET_MODELS.keys())
 
 class InputsTemplate:
@@ -52,7 +46,34 @@ class TestsResultsTemplates:
         self.asset_class = asset_class
         self.model_name  = model_name
 
-    def render(self, df, martingality_df):
+    def render_interest_rates(self, df, martingality_df):
+        """ Method to display the input template (with unique keys) """
+        fig1 = go.Figure()
+        for idx in df.index:
+            fig1.add_trace(go.Scatter(x = df.columns, y = df.loc[idx], mode = 'lines', name = idx))
+        fig1.update_layout(title = f'Simulations of {self.model_name} model',
+                          xaxis_title = 'Time (years)',
+                          yaxis_title = 'Index',
+                          showlegend = False)
+        
+        fig2 = go.Figure()
+        col_names_martingality = ["Results",
+                                  "Lower Confidence Interval",
+                                  "Upper Confidence Interval",
+                                  "Expected"]
+        for name in col_names_martingality:
+            fig2.add_trace(go.Scatter(x = martingality_df.index, y = martingality_df[name], mode = 'lines', name = name))
+        fig2.update_layout(title = 'Martingality tests',
+                          xaxis_title = 'Time (years)',
+                          yaxis_title = 'Index',
+                          showlegend = True)
+        st.plotly_chart(fig1)
+        st.plotly_chart(fig2)
+
+        st.write(martingality_df)
+        # On affiche un plot de la moyenne, de l'espérance, et des upper / lower
+
+    def render_equity(self, df, martingality_df):
         """ Method to display the input template (with unique keys) """
         fig1 = go.Figure()
         for idx in df.index:
