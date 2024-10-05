@@ -1,6 +1,6 @@
 import streamlit as st
 
-from scripts.class_model import Model, ASSET_MODELS
+from scripts.class_model import Model, deflator_calculation, MODEL_TYPE
 from scripts.class_test import Martingality_test
 from scripts.class_template import RiskFreeRates, InputsTemplate, TestsResultsTemplates, class_list
 
@@ -51,24 +51,31 @@ if not rfr_dict == {}:
             if not df_temp.empty:
                 # Name of the asset model for the asset class
                 model_name_temp = dict_simulations[template.asset_class]['model_name']
+                type_temp = MODEL_TYPE[model_name_temp]
                 # Calibration of the model
                 model_temp = Model(name = model_name_temp)
                 calibrated_params = model_temp.calibration(df_temp)
+                st.write(calibrated_params)
                 # Projection using the model
                 match model_name_temp:
                     case 'Black-Scholes':
                         proj_df_temp = model_temp.blackscholes_projection(calibrated_params, T, N, rfr_temp)
                         # Martingality test
-                        mart_test_temp = Martingality_test(type = "index")
+                        mart_test_temp = Martingality_test(type = type_temp)
                         martingality_df_temp = mart_test_temp.martingality_calcs(proj_df_temp, rfr_temp, 0.05)
-                        #Creation of the streamlit features
-                        template.render(proj_df_temp, martingality_df_temp)
+                        # Creation of the streamlit features
+                        template.render_equity(proj_df_temp, martingality_df_temp)
                     case 'Vasicek':
                         proj_dict_temp = model_temp.vasicek_projection(calibrated_params, T, N, rfr_temp)
+                        # Extraction of maturity = 1 for deflator calculation
+                        test_def_temp = proj_dict_temp[1] # To be removed
+                        st.write(test_def_temp)
+                        deflator = deflator_calculation(test_def_temp)
+                        st.write(deflator)
                         # Martingality test
-                        mart_test_temp = Martingality_test(type = "price")
+                        mart_test_temp = Martingality_test(type = type_temp)
                         martingality_df_temp = mart_test_temp.martingality_calcs(proj_dict_temp, rfr_temp, 0.05)
-                        #Creation of the streamlit features
-                        template.render(proj_df_temp, martingality_df_temp)
+                        # Creation of the streamlit features
+                        template.render_interest_rates(proj_df_temp, martingality_df_temp)
             else:
                 st.write("No data uploaded for " + class_list[i] + ".")
