@@ -101,44 +101,42 @@ class Model:
         kappa = model_params['kappa']
         theta = model_params['theta']
         sigma = model_params['sigma']
+        r0    = model_params['r0']
         
+        # Number of steps
         nb_steps = int(Tmax / dt)
 
         time_idx = range(1, Tmax + 1, 1)
         rfr_spot = pd.DataFrame(data = spot_rates(time_idx), index = time_idx, columns = ["IR"])
 
-        maturities = rfr_spot.index  # Récupère les maturités à partir des index du DataFrame spot_rates
+        maturities = rfr_spot.index
 
-        dict_paths = {}
+        paths = np.zeros((N, nb_steps + 1))
+        # Same initial value for all simulation
+        paths[:, 0] = r0
 
-        # Loop on maturities        
-        for T in maturities:
-            # Initialisation of spot rate
-            r_0 = rfr_spot.loc[T]
-            # Initialization of forcast matrix
-            paths = np.zeros((N, nb_steps + 1))
-            # Same initial value for all simulation
-            paths[:, 0] = r_0
-
+        for t in range(1, nb_steps + 1):
             # Moments adjustment
             Z = np.random.standard_normal(N)
             Z_list = Z.tolist()
             Z = (Z - np.mean(Z_list)) / np.std(Z_list)
-            
-            # Projeter l'évolution du taux pour cette maturité
-            for t in range(1, nb_steps + 1):
-                paths[:, t] = paths[:, t - 1] + kappa * (theta - paths[:, t - 1]) * dt + sigma * np.sqrt(dt) * Z
-            
-            # Création d'un DataFrame : chaque ligne est une simulation, chaque colonne est un pas de temps
-            df_paths = pd.DataFrame(paths, columns=np.linspace(0, Tmax, nb_steps + 1), index = range(1, N + 1))
-            df_paths = df_paths[range(0, Tmax + 1)]
+            # IR projection
+            paths[:, t] = paths[:, t - 1] + kappa * (theta - paths[:, t - 1]) * dt + sigma * np.sqrt(dt) * Z
 
+        # Creation of the Dataframe for the overall Vasicek path
+        df_paths = pd.DataFrame(paths, columns=np.linspace(0, Tmax, nb_steps + 1), index = range(1, N + 1))
+        df_paths = df_paths[range(0, Tmax + 1)]
+
+        dict_paths = {}
+
+        # Loop on maturities        
+        for T in  maturities:
             # Vasicek parameters
             B = (1 - np.exp(-kappa * T)) / kappa
             A = (theta - (sigma**2) / (2 * kappa**2)) * (B - T) - (sigma**2) * (B**2) / (4 * kappa)
             # From rates to ZCB prices
             df_paths = np.exp(A - B * df_paths)
-
+            # Filling of the dictionary
             dict_paths[T] = df_paths.copy()
 
         return dict_paths
