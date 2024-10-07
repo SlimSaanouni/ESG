@@ -37,8 +37,6 @@ if not rfr_dict == {}:
                 dict_simulations[template.asset_class] = output_temp
     '''
     ## Testing
-
-    ### Martingality testing
     '''
     # Tests
     tests_results_templates = [TestsResultsTemplates(class_list[i], dict_simulations[class_list[i]]['model_name']) for i in range(nb_class)]
@@ -66,11 +64,11 @@ if not rfr_dict == {}:
                         # Creation of the streamlit features
                         template.render_equity(proj_df_temp, martingality_df_temp)
                     case 'Vasicek':
+                        model_spot_curve = model_temp.vasicek_spot_curve(T)
+                        template.display_calibrated_ir(rfr_temp, model_spot_curve)
                         proj_dict_temp = model_temp.vasicek_projection(calibrated_params, T, N, rfr_temp)
                         # Extraction of maturity = 1 for deflator calculation
-                        test_def_temp = proj_dict_temp[1] # To be removed
-                        st.write(test_def_temp)
-                        deflator = deflator_calculation(test_def_temp)
+                        deflator = deflator_calculation(proj_dict_temp[1])
                         st.write(deflator)
                         # Martingality test
                         mart_test_temp = Martingality_test(type = type_temp)
