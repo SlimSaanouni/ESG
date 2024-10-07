@@ -4,7 +4,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from scipy.interpolate import CubicSpline
-from scripts.class_model import ir_to_ZCB, ASSET_MODELS
+from scripts.class_model import ir_to_ZCB, ZCB_to_ir, ASSET_MODELS
 
 class_list      = list(ASSET_MODELS.keys())
 
@@ -46,8 +46,27 @@ class TestsResultsTemplates:
         self.asset_class = asset_class
         self.model_name  = model_name
 
+    def display_calibrated_ir(self, rfr, spot):
+
+        time_idx = spot.index
+        observed_rfr = pd.Series(rfr(time_idx), index = time_idx)
+
+        #modeled_rfr_df  = ZCB_to_ir(observed_rfr_df)
+
+        fig1 = go.Figure()
+        fig1.add_trace(go.Scatter(y = observed_rfr, x = time_idx,
+                                  mode = 'lines', name = "Market rates"))
+        fig1.add_trace(go.Scatter(y = spot, x = time_idx,
+                                  mode = 'lines', name = "Modeled rates"))
+        fig1.update_layout(title = f'Replication of the spot risk free rates with the {self.model_name} model',
+                          xaxis_title = 'Maturity (years)',
+                          yaxis_title = 'Interest rates',
+                          showlegend = True)
+        st.plotly_chart(fig1)
+
     def render_interest_rates(self, df, martingality_df):
-        """ Method to display the input template (with unique keys) """
+        """ Method to display the input template (with unique keys) """        
+        
         fig1 = go.Figure()
         for idx in df.index:
             fig1.add_trace(go.Scatter(x = df.columns, y = df.loc[idx], mode = 'lines', name = idx))

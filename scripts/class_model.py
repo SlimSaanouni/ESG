@@ -19,6 +19,27 @@ class Model:
         self.name = name
         self.parameters = {}
 
+    def vasicek_spot_curve(self, T):
+
+        # Parameters
+        kappa = self.parameters['kappa']
+        theta = self.parameters['theta']
+        sigma = self.parameters['sigma']
+        r0    = self.parameters['r0']
+
+        # list of maturities
+        maturities = range(1, T + 1, 1)
+
+        ir  = []
+        for T in maturities:
+            B = (1 - np.exp(-kappa * T)) / kappa
+            A = (theta - (sigma ** 2) / (2 * kappa ** 2)) * (B - T) - (sigma ** 2 * B ** 2) / (4 * kappa)
+            zero_temp = np.exp(A - B * r0)
+            ir_temp = - np.log(zero_temp) / T
+            ir.append(ir_temp)
+
+        return pd.Series(ir, index=maturities)
+
     def vasicek_pricing(self, model_params, market_data):
         """
         Calcule les prix des obligations zéro-coupon sous le modèle de Vasicek pour une courbe de taux donnée.
@@ -222,7 +243,7 @@ class Model:
             case 'Vasicek':
                 initial_guess = [0.1, 0.03, 0.02, 0.02]
                 bounds_temp = [(0.00001, 1), (-0.1, 0.1), (0.00001, 0.5), (0, 0.1)]
-                market_data = market_data.loc[[1, 2, 5, 10, 20, 30]]
+                market_data = market_data.loc[[1, 2, 3, 4, 5, 10, 20, 40]]
                 # Temporaire A SUPPRIMER
                 '''
                 self.parameters['kappa'] = initial_guess[0]
@@ -264,6 +285,15 @@ def deflator_calculation(df):
 def ir_to_ZCB(T, rfr):
     time_idx = range(1, T + 1, 1)
     rfr_list = rfr(time_idx).tolist()
-    zc_prices = [np.exp(- rfr_list[i] * (i + 1)) for i in range(len(rfr_list))]
-    df = pd.DataFrame(zc_prices, index = time_idx, columns = ['market_price'])
+    zcb_prices = [np.exp(- rfr_list[i] * (i + 1)) for i in range(len(rfr_list))]
+    df = pd.DataFrame(zcb_prices, index = time_idx, columns = ['market_price'])
     return df
+
+def ZCB_to_ir(zcb):
+    time_idx = zcb.index
+    ir_list = [- np.log(zcb.loc[t]) / t for t in time_idx]
+    df = pd.Series(ir_list, index = time_idx, columns = ['ir'])
+    return df
+
+
+
