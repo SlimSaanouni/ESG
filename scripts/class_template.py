@@ -64,35 +64,63 @@ class TestsResultsTemplates:
                           showlegend = True)
         st.plotly_chart(fig1)
 
-    def render_interest_rates(self, df, martingality_df):
+    def render_interest_rates(self, martingality_dict):
         """ Method to display the input template (with unique keys) """        
-        
+        deflator_df = martingality_dict["Deflator"]
+        zc_price_df = martingality_dict["ZC_Price"]
+
         fig1 = go.Figure()
-        for idx in df.index:
-            fig1.add_trace(go.Scatter(x = df.columns, y = df.loc[idx], mode = 'lines', name = idx))
-        fig1.update_layout(title = f'Simulations of {self.model_name} model',
-                          xaxis_title = 'Time (years)',
-                          yaxis_title = 'Index',
-                          showlegend = False)
-        
-        fig2 = go.Figure()
-        col_names_martingality = ["Results",
-                                  "Lower Confidence Interval",
-                                  "Upper Confidence Interval",
-                                  "Expected"]
-        for name in col_names_martingality:
-            fig2.add_trace(go.Scatter(x = martingality_df.index, y = martingality_df[name], mode = 'lines', name = name))
-        fig2.update_layout(title = 'Martingality tests',
+        fig1.add_trace(go.Scatter(x = deflator_df.index,
+                                  y = deflator_df["Expected"],
+                                  mode = 'lines',
+                                  name = "Target"))
+        fig1.add_trace(go.Scatter(x = deflator_df.index,
+                                  y = deflator_df["Results"],
+                                  mode = 'lines',
+                                  name = "Results"))
+        fig1.add_trace(go.Scatter(x = deflator_df.index.tolist() + deflator_df.index[::-1].tolist(),
+                                  y = deflator_df["Lower Confidence Interval"].tolist() + deflator_df["Upper Confidence Interval"][::-1].tolist(),
+                                  fill='toself',
+                                  fillcolor='rgba(0, 100, 250, 0.2)',
+                                  line=dict(color='rgba(255,255,255,0)'),
+                                  name = "Confidence Interval"))
+
+        fig1.update_layout(title = 'Deflator martingality testing',
                           xaxis_title = 'Time (years)',
                           yaxis_title = 'Index',
                           showlegend = True)
-        st.plotly_chart(fig1)
-        st.plotly_chart(fig2)
+        
+        fig2 = go.Figure()
+        fig2.add_trace(go.Scatter(x = zc_price_df.index,
+                                  y = zc_price_df["Expected"],
+                                  mode = 'lines',
+                                  name = "Target"))
+        fig2.add_trace(go.Scatter(x = zc_price_df.index,
+                                  y = zc_price_df["Results"],
+                                  mode = 'lines',
+                                  name = "Results"))
+        fig2.add_trace(go.Scatter(x = zc_price_df.index.tolist() + zc_price_df.index[::-1].tolist(),
+                                  y = zc_price_df["Lower Confidence Interval"].tolist() + zc_price_df["Upper Confidence Interval"][::-1].tolist(),
+                                  fill='toself',
+                                  fillcolor='rgba(0, 100, 250, 0.2)',
+                                  line=dict(color='rgba(255,255,255,0)'),
+                                  name = "Confidence Interval"))
 
-        st.write(martingality_df)
+        fig2.update_layout(title = 'Deflator martingality testing',
+                          xaxis_title = 'Time (years)',
+                          yaxis_title = 'Index',
+                          showlegend = True)
+
+        
+        st.plotly_chart(fig1)
+        st.write(deflator_df)
+
+        st.plotly_chart(fig2)
+        st.write(zc_price_df)
+
         # On affiche un plot de la moyenne, de l'espérance, et des upper / lower
 
-    def render_equity(self, df, martingality_df):
+    def render_index(self, df, martingality_df):
         """ Method to display the input template (with unique keys) """
         fig1 = go.Figure()
         for idx in df.index:
@@ -109,7 +137,7 @@ class TestsResultsTemplates:
                                   "Expected"]
         for name in col_names_martingality:
             fig2.add_trace(go.Scatter(x = martingality_df.index, y = martingality_df[name], mode = 'lines', name = name))
-        fig2.update_layout(title = 'Martingality tests',
+        fig2.update_layout(title = 'Martingality testing',
                           xaxis_title = 'Time (years)',
                           yaxis_title = 'Index',
                           showlegend = True)

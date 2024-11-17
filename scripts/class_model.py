@@ -156,9 +156,11 @@ class Model:
             B = (1 - np.exp(-kappa * T)) / kappa
             A = (theta - (sigma**2) / (2 * kappa**2)) * (B - T) - (sigma**2) * (B**2) / (4 * kappa)
             # From rates to ZCB prices
-            df_paths = np.exp(A - B * df_paths)
+            df_path_temp = np.exp(A - B * df_paths)
             # Filling of the dictionary
-            dict_paths[T] = df_paths.copy()
+            dict_paths[T] = df_path_temp.copy()
+
+        dict_paths["Deflator"] = deflator_calculation(dict_paths)
 
         return dict_paths
 
@@ -243,7 +245,7 @@ class Model:
             case 'Vasicek':
                 initial_guess = [0.1, 0.03, 0.02, 0.02]
                 bounds_temp = [(0.00001, 1), (-0.1, 0.1), (0.00001, 0.5), (0, 0.1)]
-                market_data = market_data.loc[[1, 2, 3, 4, 5, 10, 20, 40]]
+                market_data = market_data.loc[[1, 2, 3, 4, 5, 10, 40]]
                 # Temporaire A SUPPRIMER
                 '''
                 self.parameters['kappa'] = initial_guess[0]
@@ -278,10 +280,6 @@ class Model:
         return self.parameters
     
 
-def deflator_calculation(df):
-    df_adj = df.cumprod(axis = 1)
-    return df_adj / df
-
 def ir_to_ZCB(T, rfr):
     time_idx = range(1, T + 1, 1)
     rfr_list = rfr(time_idx).tolist()
@@ -295,5 +293,7 @@ def ZCB_to_ir(zcb):
     df = pd.Series(ir_list, index = time_idx, columns = ['ir'])
     return df
 
-
-
+def deflator_calculation(dict_df):
+    deflator_df = dict_df[1]
+    adj_df = deflator_df.cumprod(axis = 1)
+    return adj_df / deflator_df
