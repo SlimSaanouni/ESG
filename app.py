@@ -66,6 +66,13 @@ if not rfr_dict == {}:
                         martingality_df_temp = mart_test_temp.martingality_calcs(proj_df_temp, rfr_temp, 0.05)
                         # Display of results
                         template.render_index(proj_df_temp, martingality_df_temp)
+                    case 'Dupire':
+                        proj_df_temp = model_temp.dupire_projection(calibrated_params, T, N, rfr_temp)
+                        # Martingality test
+                        mart_test_temp = Martingality_test(type = type_temp)
+                        martingality_df_temp = mart_test_temp.martingality_calcs(proj_df_temp, rfr_temp, 0.05)
+                        # Display of results
+                        template.render_index(proj_df_temp, martingality_df_temp)
                     case 'Vasicek':
                         model_spot_curve = model_temp.vasicek_spot_curve(T)
                         template.display_calibrated_ir(rfr_temp, model_spot_curve)

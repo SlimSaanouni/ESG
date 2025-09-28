@@ -3,6 +3,7 @@ import pandas as pd
 from scipy.optimize import minimize
 from scripts.class_vasicek import VasicekModel
 from scripts.class_blackscholes import BlackScholesModel
+from scripts.class_dupire import DupireModel
 
 ASSET_MODELS    = { "Interest rates": ["Vasicek", "G2++"],
                     "Equity"        : ["Black-Scholes", "Dupire", "Heston"],
@@ -25,6 +26,8 @@ class Model:
             self.vasicek_model = VasicekModel()
         elif self.name == 'Black-Scholes':
             self.blackscholes_model = BlackScholesModel()
+        elif self.name == 'Dupire':
+            self.dupire_model = DupireModel()
 
     def vasicek_spot_curve(self, T):
         """
@@ -79,9 +82,29 @@ class Model:
         """
         if self.name != 'Black-Scholes':
             raise ValueError("Cette méthode n'est disponible que pour le modèle Black-Scholes")
-        
+    
         blackscholes_temp = BlackScholesModel()
         return blackscholes_temp.projection(model_params, T, N, rfr, dt, S0)
+        
+    def dupire_pricing(self, model_params, market_data):
+        """
+        Délègue le pricing au modèle de Dupire
+        """
+        if self.name != 'Dupire':
+            raise ValueError("Cette méthode n'est disponible que pour le modèle de Dupire")
+        
+        dupire_temp = DupireModel()
+        return dupire_temp.pricing(model_params, market_data)
+    
+    def dupire_projection(self, model_params, T, N, rfr, dt=1/252, S0=100):
+        """
+        Délègue la projection au modèle de Dupire
+        """
+        if self.name != 'Dupire':
+            raise ValueError("Cette méthode n'est disponible que pour le modèle de Dupire")
+        
+        dupire_temp = DupireModel()
+        return dupire_temp.projection(model_params, T, N, rfr, dt, S0)
 
     def derivative_pricing(self, model_params, market_data):
         """
@@ -94,6 +117,8 @@ class Model:
         match self.name:
             case 'Black-Scholes':
                 return self.blackscholes_pricing(model_params, market_data)
+            case 'Dupire':
+                return self.dupire_pricing(model_params, market_data)
             case 'Vasicek':
                 return self.vasicek_pricing(model_params, market_data)
             case _:
@@ -111,6 +136,9 @@ class Model:
             case 'Black-Scholes':
                 initial_guess = [0.2]
                 bounds_temp = [(0, None)]
+            case 'Dupire':
+                initial_guess = [0.2, 0.1]  # [sigma, vol_of_vol]
+                bounds_temp = [(0, None), (0, 1)]
             case 'Vasicek':
                 initial_guess = [0.1, 0.03, 0.02, 0.02]
                 bounds_temp = [(0.00001, 1), (-0.1, 0.1), (0.00001, 0.5), (0, 0.1)]
@@ -130,6 +158,9 @@ class Model:
         match self.name:
             case 'Black-Scholes':
                 self.parameters['sigma'] = result.x[0]
+            case 'Dupire':
+                self.parameters['sigma'] = result.x[0]
+                self.parameters['vol_of_vol'] = result.x[1]
             case 'Vasicek':
                 self.parameters['kappa'] = result.x[0]
                 self.parameters['theta'] = result.x[1]
