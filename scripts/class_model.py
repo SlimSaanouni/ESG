@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 from scipy.stats import norm
+from scripts.vasicek_class import VasicekModel
 
 ASSET_MODELS    = { "Interest rates": ["Vasicek", "G2++"],
                     "Equity"        : ["Black-Scholes", "Dupire", "Heston"],
@@ -18,62 +19,47 @@ class Model:
     def __init__(self, name):
         self.name = name
         self.parameters = {}
+        
+        # Initialisation du modèle Vasicek si nécessaire
+        if self.name == 'Vasicek':
+            self.vasicek_model = VasicekModel()
 
     def vasicek_spot_curve(self, T):
-
-        # Parameters
-        kappa = self.parameters['kappa']
-        theta = self.parameters['theta']
-        sigma = self.parameters['sigma']
-        r0    = self.parameters['r0']
-
-        # list of maturities
-        maturities = range(1, T + 1, 1)
-
-        ir  = []
-        for T in maturities:
-            B = (1 - np.exp(-kappa * T)) / kappa
-            A = (theta - (sigma ** 2) / (2 * kappa ** 2)) * (B - T) - (sigma ** 2 * B ** 2) / (4 * kappa)
-            zero_temp = np.exp(A - B * r0)
-            ir_temp = - np.log(zero_temp) / T
-            ir.append(ir_temp)
-
-        return pd.Series(ir, index=maturities)
+        """
+        Délègue le calcul de la courbe spot au modèle Vasicek
+        """
+        if self.name != 'Vasicek':
+            raise ValueError("Cette méthode n'est disponible que pour le modèle Vasicek")
+        
+        # Mise à jour des paramètres dans le modèle Vasicek
+        self.vasicek_model.set_parameters(
+            self.parameters['kappa'],
+            self.parameters['theta'],
+            self.parameters['sigma'],
+            self.parameters['r0']
+        )
+        
+        return self.vasicek_model.spot_curve(T)
 
     def vasicek_pricing(self, model_params, market_data):
         """
-        Calcule les prix des obligations zéro-coupon sous le modèle de Vasicek pour une courbe de taux donnée.
-        
-        :param kappa: Vitesse de réversion
-        :param theta: Niveau de réversion à long terme
-        :param sigma: Volatilité
-        :param spot_rates: DataFrame contenant les taux spot pour chaque maturité (index : maturités en années)
-        :return: DataFrame avec les prix des obligations zéro-coupon pour chaque maturité
+        Délègue le pricing au modèle Vasicek
         """
-        # Parameters of the model
-        kappa = model_params[0]
-        theta = model_params[1]
-        sigma = model_params[2]
-        r0    = model_params[3]
-
-        # Market data
-        maturities = market_data.index
+        if self.name != 'Vasicek':
+            raise ValueError("Cette méthode n'est disponible que pour le modèle Vasicek")
         
-        list_zc_prices = []
-        # Vasicek features
-        for T in maturities:            
-            # Paramètres du modèle de Vasicek pour calculer le prix du zéro-coupon
-            B = (1 - np.exp(-kappa * T)) / kappa
-            A = (theta - (sigma**2) / (2 * kappa**2)) * (B - T) - (sigma**2) * (B**2) / (4 * kappa)
-            
-            # Calcul du prix du zéro-coupon sous le modèle de Vasicek
-            zc_price = np.exp(A - B * r0)
-            list_zc_prices.append(zc_price)
-
-        #print(zero_coupon_prices)
-        zc_df = pd.Series(data = list_zc_prices, index=maturities)
-
-        return zc_df
+        vasicek_temp = VasicekModel()
+        return vasicek_temp.pricing(model_params, market_data)
+    
+    def vasicek_projection(self, model_params, Tmax, N, spot_rates, dt=1/12):
+        """
+        Délègue la projection au modèle Vasicek
+        """
+        if self.name != 'Vasicek':
+            raise ValueError("Cette méthode n'est disponible que pour le modèle Vasicek")
+        
+        vasicek_temp = VasicekModel()
+        return vasicek_temp.projection(model_params, Tmax, N, spot_rates, dt)
     
     def blackscholes_pricing(self, model_params, market_data):
         """
@@ -100,75 +86,16 @@ class Model:
         if all(option_type == "call"):
             price = S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
         elif all(option_type == "put"):
-            price = K * np.exp(-r * T) * norm.cdf(-d2) - S * np.cdf(-d1)
+            price = K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
         else:
             raise ValueError("Le type d'option doit être 'call' ou 'put', et unique.")
 
         return price
 
-    def vasicek_projection(self, model_params, Tmax, N, spot_rates, dt = 1 / 12):
-        """
-        Projette les taux d'intérêt sous le modèle de Vasicek pour des maturités allant de 1 à 40 ans, sur 1000 simulations.
-        
-        :param kappa: Vitesse de réversion
-        :param theta: Niveau de réversion à long terme
-        :param sigma: Volatilité
-        :param spot_rates: DataFrame contenant les taux spot pour les maturités (les index sont les maturités)
-        :param N_simulations: Nombre de simulations
-        :return: DataFrame contenant les taux d'intérêt projetés pour chaque simulation et chaque maturité
-        """
-
-        # Parameters of the model
-        kappa = model_params['kappa']
-        theta = model_params['theta']
-        sigma = model_params['sigma']
-        r0    = model_params['r0']
-        
-        # Number of steps
-        nb_steps = int(Tmax / dt)
-
-        time_idx = range(1, Tmax + 1, 1)
-        rfr_spot = pd.DataFrame(data = spot_rates(time_idx), index = time_idx, columns = ["IR"])
-
-        maturities = rfr_spot.index
-
-        paths = np.zeros((N, nb_steps + 1))
-        # Same initial value for all simulation
-        paths[:, 0] = r0
-
-        for t in range(1, nb_steps + 1):
-            # Moments adjustment
-            Z = np.random.standard_normal(N)
-            Z_list = Z.tolist()
-            Z = (Z - np.mean(Z_list)) / np.std(Z_list)
-            # IR projection
-            paths[:, t] = paths[:, t - 1] + kappa * (theta - paths[:, t - 1]) * dt + sigma * np.sqrt(dt) * Z
-
-        # Creation of the Dataframe for the overall Vasicek path
-        df_paths = pd.DataFrame(paths, columns=np.linspace(0, Tmax, nb_steps + 1), index = range(1, N + 1))
-        df_paths = df_paths[range(0, Tmax + 1)]
-
-        dict_paths = {}
-
-        # Loop on maturities        
-        for T in  maturities:
-            # Vasicek parameters
-            B = (1 - np.exp(-kappa * T)) / kappa
-            A = (theta - (sigma**2) / (2 * kappa**2)) * (B - T) - (sigma**2) * (B**2) / (4 * kappa)
-            # From rates to ZCB prices
-            df_path_temp = np.exp(A - B * df_paths)
-            # Filling of the dictionary
-            dict_paths[T] = df_path_temp.copy()
-
-        dict_paths["Deflator"] = deflator_calculation(dict_paths)
-
-        return dict_paths
-
     def blackscholes_projection(self, model_params, T, N, rfr, dt=1/252, S0=100):
         """
         Projette l'indice sous-jacent selon le modèle Black-Scholes avec simulation de Monte Carlo.
         
-        :param model_name: Nom du modèle ('Black-Scholes')
         :param model_params: Dictionnaire contenant les paramètres du modèle (e.g., {'sigma': 0.2})
         :param T: Horizon de temps de projection en années
         :param N: Nombre de simulations
@@ -177,7 +104,6 @@ class Model:
         :param S0: Valeur initiale de l'indice (par défaut, 100)
         :return: DataFrame contenant les trajectoires simulées (chaque ligne correspond à une simulation)
         """
-
         # Extraction of parameters
         sigma = model_params['sigma']
 
@@ -216,7 +142,6 @@ class Model:
         """
         Calcul du prix d'une option en fonction du modèle sélectionné.
         
-        :param model_name: Nom du modèle ('Black-Scholes', 'Heston', etc.)
         :param model_params: Dictionnaire contenant les paramètres du modèle
         :param market_data: DataFrame avec les données de marché (doit contenir les colonnes 'S', 'K', 'r', 'T', 'option_type')
         :return: DataFrame avec les prix modélisés
@@ -234,9 +159,8 @@ class Model:
         Calibre les paramètres du modèle en minimisant l'écart entre les prix de marché
         et les prix calculés par le modèle.
         
-        :param model_name: Nom du modèle
         :param market_data: DataFrame avec les données de marché (doit contenir 'market_price', 'S', 'K', 'r', 'T', 'option_type')
-        :return: Paramètre calibré (ici, la volatilité 'sigma' pour Black-Scholes)
+        :return: Paramètres calibrés
         """
         match self.name:
             case 'Black-Scholes':
@@ -246,14 +170,6 @@ class Model:
                 initial_guess = [0.1, 0.03, 0.02, 0.02]
                 bounds_temp = [(0.00001, 1), (-0.1, 0.1), (0.00001, 0.5), (0, 0.1)]
                 market_data = market_data.loc[[1, 2, 3, 4, 5, 10, 40]]
-                # Temporaire A SUPPRIMER
-                '''
-                self.parameters['kappa'] = initial_guess[0]
-                self.parameters['theta'] = initial_guess[1]
-                self.parameters['sigma'] = initial_guess[2]
-                # Fin du truc à supprimer!!!
-                return self.parameters
-                '''
             case _:    
                 raise NotImplementedError(f"La calibration n'est implémentée pour le modèle {self.name}.")
         
