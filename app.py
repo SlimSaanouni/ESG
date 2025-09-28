@@ -68,6 +68,11 @@ if not rfr_dict == {}:
                         template.render_index(proj_df_temp, martingality_df_temp)
                     case 'Dupire':
                         proj_df_temp = model_temp.dupire_projection(calibrated_params, T, N, rfr_temp)
+                        mart_test_temp = Martingality_test(type = type_temp)
+                        martingality_df_temp = mart_test_temp.martingality_calcs(proj_df_temp, rfr_temp, 0.05)
+                        template.render_index(proj_df_temp, martingality_df_temp)
+                    case 'Heston':
+                        proj_df_temp = model_temp.heston_projection(calibrated_params, T, N, rfr_temp)
                         # Martingality test
                         mart_test_temp = Martingality_test(type = type_temp)
                         martingality_df_temp = mart_test_temp.martingality_calcs(proj_df_temp, rfr_temp, 0.05)

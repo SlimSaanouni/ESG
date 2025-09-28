@@ -4,6 +4,8 @@ from scipy.optimize import minimize
 from scripts.class_vasicek import VasicekModel
 from scripts.class_blackscholes import BlackScholesModel
 from scripts.class_dupire import DupireModel
+from scripts.class_heston import HestonModel
+
 
 ASSET_MODELS    = { "Interest rates": ["Vasicek", "G2++"],
                     "Equity"        : ["Black-Scholes", "Dupire", "Heston"],
@@ -28,6 +30,8 @@ class Model:
             self.blackscholes_model = BlackScholesModel()
         elif self.name == 'Dupire':
             self.dupire_model = DupireModel()
+        elif self.name == 'Heston':
+            self.heston_model = HestonModel()
 
     def vasicek_spot_curve(self, T):
         """
@@ -82,10 +86,10 @@ class Model:
         """
         if self.name != 'Black-Scholes':
             raise ValueError("Cette méthode n'est disponible que pour le modèle Black-Scholes")
-    
+        
         blackscholes_temp = BlackScholesModel()
         return blackscholes_temp.projection(model_params, T, N, rfr, dt, S0)
-        
+
     def dupire_pricing(self, model_params, market_data):
         """
         Délègue le pricing au modèle de Dupire
@@ -106,6 +110,26 @@ class Model:
         dupire_temp = DupireModel()
         return dupire_temp.projection(model_params, T, N, rfr, dt, S0)
 
+    def heston_pricing(self, model_params, market_data):
+        """
+        Délègue le pricing au modèle de Heston
+        """
+        if self.name != 'Heston':
+            raise ValueError("Cette méthode n'est disponible que pour le modèle de Heston")
+        
+        heston_temp = HestonModel()
+        return heston_temp.pricing(model_params, market_data)
+    
+    def heston_projection(self, model_params, T, N, rfr, dt=1/252, S0=100):
+        """
+        Délègue la projection au modèle de Heston
+        """
+        if self.name != 'Heston':
+            raise ValueError("Cette méthode n'est disponible que pour le modèle de Heston")
+        
+        heston_temp = HestonModel()
+        return heston_temp.projection(model_params, T, N, rfr, dt, S0)
+
     def derivative_pricing(self, model_params, market_data):
         """
         Calcul du prix d'une option en fonction du modèle sélectionné.
@@ -119,6 +143,8 @@ class Model:
                 return self.blackscholes_pricing(model_params, market_data)
             case 'Dupire':
                 return self.dupire_pricing(model_params, market_data)
+            case 'Heston':
+                return self.heston_pricing(model_params, market_data)
             case 'Vasicek':
                 return self.vasicek_pricing(model_params, market_data)
             case _:
@@ -139,6 +165,9 @@ class Model:
             case 'Dupire':
                 initial_guess = [0.2, 0.1]  # [sigma, vol_of_vol]
                 bounds_temp = [(0, None), (0, 1)]
+            case 'Heston':
+                initial_guess = [0.04, 2.0, 0.04, 0.3, -0.5]  # [v0, kappa, theta, sigma, rho]
+                bounds_temp = [(0.001, 1), (0.1, 10), (0.001, 1), (0.01, 2), (-0.99, 0.99)]
             case 'Vasicek':
                 initial_guess = [0.1, 0.03, 0.02, 0.02]
                 bounds_temp = [(0.00001, 1), (-0.1, 0.1), (0.00001, 0.5), (0, 0.1)]
@@ -161,6 +190,12 @@ class Model:
             case 'Dupire':
                 self.parameters['sigma'] = result.x[0]
                 self.parameters['vol_of_vol'] = result.x[1]
+            case 'Heston':
+                self.parameters['v0'] = result.x[0]
+                self.parameters['kappa'] = result.x[1]
+                self.parameters['theta'] = result.x[2]
+                self.parameters['sigma'] = result.x[3]
+                self.parameters['rho'] = result.x[4]
             case 'Vasicek':
                 self.parameters['kappa'] = result.x[0]
                 self.parameters['theta'] = result.x[1]
