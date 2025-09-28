@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
-from scipy.stats import norm
-from scripts.vasicek_class import VasicekModel
+from scripts.class_vasicek import VasicekModel
+from scripts.class_blackscholes import BlackScholesModel
 
 ASSET_MODELS    = { "Interest rates": ["Vasicek", "G2++"],
                     "Equity"        : ["Black-Scholes", "Dupire", "Heston"],
@@ -20,9 +20,11 @@ class Model:
         self.name = name
         self.parameters = {}
         
-        # Initialisation du modèle Vasicek si nécessaire
+        # Initialisation du modèle approprié selon le nom
         if self.name == 'Vasicek':
             self.vasicek_model = VasicekModel()
+        elif self.name == 'Black-Scholes':
+            self.blackscholes_model = BlackScholesModel()
 
     def vasicek_spot_curve(self, T):
         """
@@ -63,80 +65,23 @@ class Model:
     
     def blackscholes_pricing(self, model_params, market_data):
         """
-        Calcule le prix d'une option call ou put avec le modèle Black-Scholes.
-        
-        :param model_params: Dictionnaire contenant les paramètres du modèle ('sigma')
-        :param market_data: DataFrame avec les données de marché (doit contenir les colonnes 'S', 'K', 'r', 'T', 'option_type')
-        :return: DataFrame contenant les prix modélisés
+        Délègue le pricing au modèle Black-Scholes
         """
-        # Parameters of the model
-        sigma = model_params[0]
-
-        # Market data
-        S = market_data['S']
-        K = market_data['K']
-        r = market_data['r']
-        T = market_data['T']
-        option_type = market_data['option_type']
-
-        # BS features
-        d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
-        d2 = d1 - sigma * np.sqrt(T)
-
-        if all(option_type == "call"):
-            price = S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
-        elif all(option_type == "put"):
-            price = K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
-        else:
-            raise ValueError("Le type d'option doit être 'call' ou 'put', et unique.")
-
-        return price
-
+        if self.name != 'Black-Scholes':
+            raise ValueError("Cette méthode n'est disponible que pour le modèle Black-Scholes")
+        
+        blackscholes_temp = BlackScholesModel()
+        return blackscholes_temp.pricing(model_params, market_data)
+    
     def blackscholes_projection(self, model_params, T, N, rfr, dt=1/252, S0=100):
         """
-        Projette l'indice sous-jacent selon le modèle Black-Scholes avec simulation de Monte Carlo.
-        
-        :param model_params: Dictionnaire contenant les paramètres du modèle (e.g., {'sigma': 0.2})
-        :param T: Horizon de temps de projection en années
-        :param N: Nombre de simulations
-        :param rfr: Courbe des taux / Drifts pour projection
-        :param dt: Pas de temps (par défaut, 1/252 pour un jour de trading)
-        :param S0: Valeur initiale de l'indice (par défaut, 100)
-        :return: DataFrame contenant les trajectoires simulées (chaque ligne correspond à une simulation)
+        Délègue la projection au modèle Black-Scholes
         """
-        # Extraction of parameters
-        sigma = model_params['sigma']
-
-        # Time step calculation
-        nb_steps = int(T / dt)
+        if self.name != 'Black-Scholes':
+            raise ValueError("Cette méthode n'est disponible que pour le modèle Black-Scholes")
         
-        # Initialization of forcast matrix
-        paths = np.zeros((N, nb_steps + 1))
-        
-        # Same initial value for all simulation
-        paths[:, 0] = S0
-
-        # Preparation of RFR data
-        adj_rfr_list = [0]
-        adj_rfr_list.extend([rfr(i + 1) * (i + 1) - rfr(i) * i for i in range(0, T)])
-        
-        # Simulation de N trajectoires
-        for t in range(1, nb_steps + 1):
-            # Gaussian sampling
-            Z = np.random.standard_normal(N)
-            # Moments adjustment
-            Z_list = Z.tolist()
-            Z = (Z - np.mean(Z_list)) / np.std(Z_list)
-            # Antithetic variables - A créer
-            # Processus de diffusion géométrique pour chaque simulation à chaque pas de temps
-            rfr_temp = (adj_rfr_list[int(np.ceil(t * dt))]) 
-            paths[:, t] = paths[:, t-1] * np.exp((rfr_temp - 0.5 * sigma ** 2) * dt + sigma * np.sqrt(dt) * Z)            
-
-        # Création d'un DataFrame : chaque ligne est une simulation, chaque colonne est un pas de temps
-        df_paths = pd.DataFrame(paths, columns=np.linspace(0, T, nb_steps + 1), index = range(1, N + 1))
-        df_paths = df_paths[range(0, T + 1)]
-        
-        return df_paths
+        blackscholes_temp = BlackScholesModel()
+        return blackscholes_temp.projection(model_params, T, N, rfr, dt, S0)
 
     def derivative_pricing(self, model_params, market_data):
         """
