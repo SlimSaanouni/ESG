@@ -4,7 +4,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from scipy.interpolate import CubicSpline
-from scripts.class_model import ir_to_ZCB, ZCB_to_ir, ASSET_MODELS
+from scripts.class_model import ir_to_ZCB, ASSET_MODELS
 
 class_list      = list(ASSET_MODELS.keys())
 
