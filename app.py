@@ -1,8 +1,10 @@
 import streamlit as st
+import pandas as pd
 
-from scripts.class_model import Model, MODEL_TYPE
+from scripts.class_model import Model, MODEL_TYPE, NB_WEINER
 from scripts.class_test import Martingality_test
 from scripts.class_template import RiskFreeRates, InputsTemplate, TestsResultsTemplates, class_list
+from scripts.dependency_tab import render_dependency_tab
 
 N_COL_MAX   = 3
 nb_class    = len(class_list)
@@ -12,7 +14,7 @@ st.set_page_config(
     page_title="Financial Models Calibration",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="collapsed"  # Sidebar cachée initialement
+    initial_sidebar_state="collapsed"
 )
 
 '''
@@ -26,7 +28,6 @@ rfr_dict = rfr.render()
 
 # Vérification si le fichier RFR est uploadé
 if rfr_dict == {}:
-    # Sidebar vide et cachée
     st.info("📁 Please upload the Risk Free Rates file to continue.")
     st.stop()
 
@@ -53,8 +54,9 @@ rfr_temp = rfr_dict["Base"]
 with st.sidebar:
     st.header("📋 General parameters")
     st.markdown("---")
-    T = st.number_input("Projection horizon", min_value=1, max_value=100, value=50, step=1, key="T")
+    T = st.number_input("Projection horizon (years)", min_value=1, max_value=100, value=50, step=1, key="T")
     N = st.number_input("Number of simulations", min_value=100, max_value=10000, value=1000, step=100, key="N")
+    
     st.header("📋 Model Selection")
     st.markdown("---")
     
@@ -66,57 +68,101 @@ with st.sidebar:
             output_temp = template.render(T, rfr_temp)
             dict_simulations[template.asset_class] = output_temp
 
-'''
-## Testing
-'''
-# Tests dans le contenu principal
-tests_results_templates = [TestsResultsTemplates(class_list[i], dict_simulations[class_list[i]]['model_name']) for i in range(nb_class)]
-tabs_result = st.tabs(class_list)
+# Vérification de l'état des modèles calibrés
+# Pour la dependency structure, on a besoin des 3 classes principales
+required_classes = ["Interest rates", "Equity", "Real Estate"]
+models_ready = all(
+    not dict_simulations[asset_class]['calibration_df'].empty 
+    for asset_class in required_classes
+)
 
+# Extraction des modèles sélectionnés
+selected_models = {
+    asset_class: dict_simulations[asset_class]['model_name']
+    for asset_class in required_classes
+}
+
+'''
+## Results
+'''
+# Création des onglets (ajout de l'onglet Dependency Structure)
+tab_names = class_list + ["Dependency Structure"]
+tabs = st.tabs(tab_names)
+
+# Tests dans les onglets de résultats
+tests_results_templates = [
+    TestsResultsTemplates(class_list[i], dict_simulations[class_list[i]]['model_name']) 
+    for i in range(nb_class)
+]
+
+# Onglets pour chaque classe d'actifs
 for i, template in enumerate(tests_results_templates):
-    with tabs_result[i]:
+    with tabs[i]:
         # Reading of the market data that will be used to calibrate the chosen model
         df_temp = dict_simulations[template.asset_class]['calibration_df']
+        
         if not df_temp.empty:
             # Name of the asset model for the asset class
             model_name_temp = dict_simulations[template.asset_class]['model_name']
             type_temp = MODEL_TYPE[model_name_temp]
+            
             # Calibration of the model
-            model_temp = Model(name = model_name_temp)
-            calibrated_params = model_temp.calibration(df_temp)
+            with st.spinner(f"Calibrating {model_name_temp} model..."):
+                model_temp = Model(name=model_name_temp)
+                calibrated_params = model_temp.calibration(df_temp)
+            
             '''
             ### Calibrated parameters
             '''
-            st.write(calibrated_params)
+            # Affichage des paramètres calibrés dans un expander
+            with st.expander("📊 View Calibrated Parameters", expanded=True):
+                params_df = pd.DataFrame([calibrated_params]).T
+                params_df.columns = ['Value']
+                st.dataframe(params_df, use_container_width=True)
+            
             # Projection using the model
-            match model_name_temp:
-                case 'Black-Scholes':
-                    proj_df_temp = model_temp.blackscholes_projection(calibrated_params, T, N, rfr_temp)
-                    # Martingality test
-                    mart_test_temp = Martingality_test(type = type_temp)
-                    martingality_df_temp = mart_test_temp.martingality_calcs(proj_df_temp, rfr_temp, 0.05)
-                    # Display of results
-                    template.render_index(proj_df_temp, martingality_df_temp)
-                case 'Dupire':
-                    proj_df_temp = model_temp.dupire_projection(calibrated_params, T, N, rfr_temp)
-                    mart_test_temp = Martingality_test(type = type_temp)
-                    martingality_df_temp = mart_test_temp.martingality_calcs(proj_df_temp, rfr_temp, 0.05)
-                    template.render_index(proj_df_temp, martingality_df_temp)
-                case 'Heston':
-                    proj_df_temp = model_temp.heston_projection(calibrated_params, T, N, rfr_temp)
-                    # Martingality test
-                    mart_test_temp = Martingality_test(type = type_temp)
-                    martingality_df_temp = mart_test_temp.martingality_calcs(proj_df_temp, rfr_temp, 0.05)
-                    # Display of results
-                    template.render_index(proj_df_temp, martingality_df_temp)
-                case 'Vasicek':
-                    model_spot_curve = model_temp.vasicek_spot_curve(T)
-                    template.display_calibrated_ir(rfr_temp, model_spot_curve)
-                    proj_dict_temp = model_temp.vasicek_projection(calibrated_params, T, N, rfr_temp)
-                    # Martingality test
-                    mart_test_temp = Martingality_test(type = type_temp)
-                    martingality_dict_temp = mart_test_temp.martingality_calcs(proj_dict_temp, model_spot_curve, 0.05)
-                    # Display of results
-                    template.render_interest_rates(martingality_dict_temp)
+            with st.spinner(f"Running {N} simulations..."):
+                match model_name_temp:
+                    case 'Black-Scholes':
+                        proj_df_temp = model_temp.blackscholes_projection(calibrated_params, T, N, rfr_temp)
+                        # Martingality test
+                        mart_test_temp = Martingality_test(type=type_temp)
+                        martingality_df_temp = mart_test_temp.martingality_calcs(proj_df_temp, rfr_temp, 0.05)
+                        # Display of results
+                        template.render_index(proj_df_temp, martingality_df_temp)
+                    
+                    case 'Dupire':
+                        proj_df_temp = model_temp.dupire_projection(calibrated_params, T, N, rfr_temp)
+                        mart_test_temp = Martingality_test(type=type_temp)
+                        martingality_df_temp = mart_test_temp.martingality_calcs(proj_df_temp, rfr_temp, 0.05)
+                        template.render_index(proj_df_temp, martingality_df_temp)
+                    
+                    case 'Heston':
+                        proj_df_temp = model_temp.heston_projection(calibrated_params, T, N, rfr_temp)
+                        # Martingality test
+                        mart_test_temp = Martingality_test(type=type_temp)
+                        martingality_df_temp = mart_test_temp.martingality_calcs(proj_df_temp, rfr_temp, 0.05)
+                        # Display of results
+                        template.render_index(proj_df_temp, martingality_df_temp)
+                    
+                    case 'Vasicek':
+                        model_spot_curve = model_temp.vasicek_spot_curve(T)
+                        template.display_calibrated_ir(rfr_temp, model_spot_curve)
+                        proj_dict_temp = model_temp.vasicek_projection(calibrated_params, T, N, rfr_temp)
+                        # Martingality test
+                        mart_test_temp = Martingality_test(type=type_temp)
+                        martingality_dict_temp = mart_test_temp.martingality_calcs(proj_dict_temp, model_spot_curve, 0.05)
+                        # Display of results
+                        template.render_interest_rates(martingality_dict_temp)
         else:
-            st.write("No data uploaded for " + class_list[i] + ".")
+            st.warning(f"⚠️ No data uploaded for {class_list[i]}.")
+            st.info("Please upload calibration data in the sidebar to see results.")
+
+# Onglet Dependency Structure (dernier onglet)
+with tabs[-1]:
+    render_dependency_tab(
+        models_ready=models_ready,
+        selected_models=selected_models,
+        nb_weiner_dict=NB_WEINER,
+        empirical_corr_df=None  # Utilise les valeurs par défaut
+    )
