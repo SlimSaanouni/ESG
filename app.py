@@ -7,9 +7,6 @@ from scripts.class_template import RiskFreeRates, InputsTemplate, TestsResultsTe
 N_COL_MAX   = 3
 nb_class    = len(class_list)
 
-T = 50 # Projection horizon
-N = 1000 # Number of simulations
-
 # Configuration de la page
 st.set_page_config(
     page_title="Financial Models Calibration",
