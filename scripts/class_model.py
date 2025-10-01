@@ -18,6 +18,12 @@ MODEL_TYPE      = { "Vasicek"       : "price",
                     "Dupire"        : "index",
                     "Heston"        : "index"}
 
+NB_WEINER       = { "Vasicek"       : 1,
+                    "G2++"          : 2,
+                    "Black-Scholes" : 1,
+                    "Dupire"        : 1,
+                    "Heston"        : 2}
+
 class Model:
     def __init__(self, name):
         self.name = name
