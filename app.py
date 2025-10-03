@@ -82,6 +82,12 @@ selected_models = {
     for asset_class in required_classes
 }
 
+# Dictionnaire pour stocker les paramètres calibrés
+calibrated_parameters = {}
+
+# Dictionnaire pour stocker les paramètres calibrés
+calibrated_parameters = {}
+
 '''
 ## Results
 '''
@@ -110,6 +116,12 @@ for i, template in enumerate(tests_results_templates):
             with st.spinner(f"Calibrating {model_name_temp} model..."):
                 model_temp = Model(name=model_name_temp)
                 calibrated_params = model_temp.calibration(df_temp)
+                
+                # Stocker les paramètres calibrés
+                calibrated_parameters[template.asset_class] = calibrated_params.copy()
+                
+                # Stocker les paramètres calibrés pour l'onglet Dependency Structure
+                calibrated_parameters[template.asset_class] = calibrated_params.copy()
             
             '''
             ### Calibrated parameters
@@ -164,5 +176,6 @@ with tabs[-1]:
         models_ready=models_ready,
         selected_models=selected_models,
         nb_weiner_dict=NB_WEINER,
+        calibrated_parameters=calibrated_parameters,  # Passer les paramètres calibrés
         empirical_corr_df=None  # Utilise les valeurs par défaut
     )

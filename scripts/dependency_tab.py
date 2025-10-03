@@ -9,13 +9,14 @@ import numpy as np
 from scripts.correlation_manager import CorrelationManager
 
 
-def render_dependency_tab(models_ready, selected_models, nb_weiner_dict, empirical_corr_df=None):
+def render_dependency_tab(models_ready, selected_models, nb_weiner_dict, calibrated_parameters=None, empirical_corr_df=None):
     """
     Affiche l'onglet de structure de dépendance
     
     :param models_ready: Boolean indiquant si tous les modèles sont calibrés
     :param selected_models: Dictionnaire {asset_class: model_name}
     :param nb_weiner_dict: Dictionnaire {model_name: nb_browniens}
+    :param calibrated_parameters: Dictionnaire {asset_class: params_dict} avec les paramètres calibrés
     :param empirical_corr_df: DataFrame de corrélation empirique (optionnel)
     """
     
@@ -27,8 +28,12 @@ def render_dependency_tab(models_ready, selected_models, nb_weiner_dict, empiric
     
     st.success("✅ All required models are calibrated!")
     
+    # Valeur par défaut pour les paramètres calibrés
+    if calibrated_parameters is None:
+        calibrated_parameters = {}
+    
     # Création du gestionnaire de corrélations
-    corr_manager = CorrelationManager(selected_models, nb_weiner_dict)
+    corr_manager = CorrelationManager(selected_models, nb_weiner_dict, calibrated_parameters)
     
     # Section 1: Information sur les browniens
     st.subheader("📊 Brownian Motion Structure")
@@ -46,15 +51,57 @@ def render_dependency_tab(models_ready, selected_models, nb_weiner_dict, empiric
         mapping_data = []
         for asset_class, info in corr_manager.get_brownian_mapping().items():
             brownians = [f"W{i+1}" for i in range(info['start_idx'], info['end_idx'])]
+            
+            # Récupérer la corrélation intra-modèle si applicable
+            intra_corr = "N/A"
+            if info['nb_brownians'] == 2:
+                model_name = info['model']
+                if asset_class in calibrated_parameters:
+                    params = calibrated_parameters[asset_class]
+                    if model_name == 'Heston':
+                        intra_corr = f"{params.get('rho', -0.5):.4f}"
+                    elif model_name == 'G2++':
+                        intra_corr = f"{params.get('rho', 0.3):.4f}"
+                else:
+                    if model_name == 'Heston':
+                        intra_corr = "-0.5000 (default)"
+                    elif model_name == 'G2++':
+                        intra_corr = "0.3000 (default)"
+            
             mapping_data.append({
                 'Asset Class': asset_class,
                 'Model': info['model'],
                 'Nb Brownians': info['nb_brownians'],
-                'Brownian Indices': ', '.join(brownians)
+                'Brownian Indices': ', '.join(brownians),
+                'Intra-Model Correlation': intra_corr
             })
         
         mapping_df = pd.DataFrame(mapping_data)
         st.dataframe(mapping_df, use_container_width=True)
+        
+        # Affichage détaillé des corrélations intra-modèles
+        if any(info['nb_brownians'] == 2 for info in corr_manager.get_brownian_mapping().values()):
+            st.markdown("#### Intra-Model Correlations Details")
+            
+            for asset_class, info in corr_manager.get_brownian_mapping().items():
+                if info['nb_brownians'] == 2:
+                    model_name = info['model']
+                    
+                    if asset_class in calibrated_parameters:
+                        params = calibrated_parameters[asset_class]
+                        if model_name == 'Heston':
+                            rho_value = params.get('rho', -0.5)
+                            st.success(f"✅ **{asset_class} ({model_name})**: ρ = {rho_value:.4f} (calibrated)")
+                            st.caption(f"   Correlation between W{info['start_idx']+1} (price) and W{info['start_idx']+2} (variance)")
+                        elif model_name == 'G2++':
+                            rho_value = params.get('rho', 0.3)
+                            st.success(f"✅ **{asset_class} ({model_name})**: ρ = {rho_value:.4f} (calibrated)")
+                            st.caption(f"   Correlation between W{info['start_idx']+1} (factor 1) and W{info['start_idx']+2} (factor 2)")
+                    else:
+                        if model_name == 'Heston':
+                            st.warning(f"⚠️ **{asset_class} ({model_name})**: ρ = -0.5000 (default - not calibrated yet)")
+                        elif model_name == 'G2++':
+                            st.warning(f"⚠️ **{asset_class} ({model_name})**: ρ = 0.3000 (default - not calibrated yet)")
     
     # Section 2: Corrélation empirique
     st.subheader("📈 Empirical Correlation Matrix")

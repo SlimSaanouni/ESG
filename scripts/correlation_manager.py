@@ -5,6 +5,7 @@ Module de gestion de la structure de dépendance et des corrélations entre mod�
 import numpy as np
 import pandas as pd
 from scipy.linalg import eigh
+from scipy.optimize import minimize
 
 
 class CorrelationManager:
@@ -12,15 +13,17 @@ class CorrelationManager:
     Classe pour gérer les matrices de corrélation entre les différents modèles
     """
     
-    def __init__(self, model_types, nb_weiner_dict):
+    def __init__(self, model_types, nb_weiner_dict, calibrated_parameters=None):
         """
         Initialise le gestionnaire de corrélations
         
         :param model_types: Dictionnaire {asset_class: model_name}
         :param nb_weiner_dict: Dictionnaire {model_name: nb_browniens}
+        :param calibrated_parameters: Dictionnaire {asset_class: params_dict} avec les paramètres calibrés
         """
         self.model_types = model_types
         self.nb_weiner_dict = nb_weiner_dict
+        self.calibrated_parameters = calibrated_parameters if calibrated_parameters is not None else {}
         self.total_brownians = 0
         self.brownian_mapping = {}
         
@@ -103,18 +106,30 @@ class CorrelationManager:
         
         if nb_brownians == 2:
             # Pour les modèles à 2 browniens (Heston, G2++)
-            # On met une corrélation par défaut selon le modèle
             model_name = mapping['model']
             
             if model_name == 'Heston':
-                # Pour Heston, utiliser le rho calibré (sera mis à jour plus tard)
-                # Pour l'instant, on met une corrélation par défaut
-                corr_matrix[start, start + 1] = -0.5
-                corr_matrix[start + 1, start] = -0.5
+                # Récupérer le rho calibré si disponible
+                if asset_class in self.calibrated_parameters:
+                    params = self.calibrated_parameters[asset_class]
+                    rho = params.get('rho', -0.5)  # Valeur par défaut si non trouvé
+                else:
+                    rho = -0.5  # Valeur par défaut si pas de calibration
+                
+                corr_matrix[start, start + 1] = rho
+                corr_matrix[start + 1, start] = rho
+                
             elif model_name == 'G2++':
-                # Pour G2++, corrélation entre les deux facteurs
-                corr_matrix[start, start + 1] = 0.3
-                corr_matrix[start + 1, start] = 0.3
+                # Pour G2++, récupérer la corrélation calibrée si disponible
+                if asset_class in self.calibrated_parameters:
+                    params = self.calibrated_parameters[asset_class]
+                    # G2++ pourrait avoir un paramètre de corrélation spécifique
+                    rho_g2 = params.get('rho', 0.3)
+                else:
+                    rho_g2 = 0.3  # Valeur par défaut
+                
+                corr_matrix[start, start + 1] = rho_g2
+                corr_matrix[start + 1, start] = rho_g2
     
     def _fill_inter_asset_correlation(self, corr_matrix, asset_i, asset_j, empirical_corr):
         """
@@ -145,8 +160,8 @@ class CorrelationManager:
                 if i == start_i and j == start_j:
                     continue  # Déjà rempli
                 # Corrélation diminuée pour les browniens secondaires
-                corr_matrix[i, j] = 0
-                corr_matrix[j, i] = 0
+                corr_matrix[i, j] = empirical_corr * 0.5
+                corr_matrix[j, i] = empirical_corr * 0.5
     
     def is_psd(self, corr_matrix):
         """
