@@ -18,13 +18,14 @@ def render_dependency_tab(models_ready, selected_models, nb_weiner_dict, calibra
     :param nb_weiner_dict: Dictionnaire {model_name: nb_browniens}
     :param calibrated_parameters: Dictionnaire {asset_class: params_dict} avec les paramètres calibrés
     :param empirical_corr_df: DataFrame de corrélation empirique (optionnel)
+    :return: Matrice de corrélation finale (PSD) ou None
     """
     
     st.header("🔗 Dependency Structure")
     
     if not models_ready:
         st.info("⏳ Please calibrate all required models (Interest rates, Equity, Real Estate) to configure the dependency structure.")
-        st.stop()
+        return None
     
     st.success("✅ All required models are calibrated!")
     
@@ -190,6 +191,9 @@ def render_dependency_tab(models_ready, selected_models, nb_weiner_dict, calibra
         )
         st.plotly_chart(fig_eigen, use_container_width=True)
     
+    # Variable pour stocker la matrice finale à retourner
+    final_matrix = theoretical_corr
+    
     # Section 4: Correction PSD si nécessaire
     if not is_psd:
         st.subheader("🔧 PSD Correction (Higham Algorithm)")
@@ -202,6 +206,7 @@ def render_dependency_tab(models_ready, selected_models, nb_weiner_dict, calibra
         
         if is_psd_corrected:
             st.success("✅ Matrix successfully corrected to PSD!")
+            final_matrix = corrected_corr
         else:
             st.warning("⚠️ Matrix correction may need additional iterations")
         
@@ -304,3 +309,6 @@ def render_dependency_tab(models_ready, selected_models, nb_weiner_dict, calibra
             file_name="correlation_matrix.csv",
             mime="text/csv"
         )
+    
+    # Retourner la matrice finale (corrigée si nécessaire, sinon théorique)
+    return final_matrix

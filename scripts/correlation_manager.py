@@ -174,7 +174,7 @@ class CorrelationManager:
             corr_matrix = corr_matrix.values
         
         eigenvalues = np.linalg.eigvalsh(corr_matrix)
-        is_psd = np.all(eigenvalues >= -1e-10)  # Tolérance numérique
+        is_psd = np.all(eigenvalues >= +1e-10)  # Tolérance numérique
         
         return is_psd, eigenvalues
     

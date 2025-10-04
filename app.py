@@ -5,6 +5,7 @@ from scripts.class_model import Model, MODEL_TYPE, NB_WEINER
 from scripts.class_test import Martingality_test
 from scripts.class_template import RiskFreeRates, InputsTemplate, TestsResultsTemplates, class_list
 from scripts.dependency_tab import render_dependency_tab
+from scripts.simulation_tab import render_simulation_tab
 
 N_COL_MAX   = 3
 nb_class    = len(class_list)
@@ -85,14 +86,11 @@ selected_models = {
 # Dictionnaire pour stocker les paramètres calibrés
 calibrated_parameters = {}
 
-# Dictionnaire pour stocker les paramètres calibrés
-calibrated_parameters = {}
-
 '''
 ## Results
 '''
-# Création des onglets (ajout de l'onglet Dependency Structure)
-tab_names = class_list + ["Dependency Structure"]
+# Création des onglets (ajout des onglets Dependency Structure et Simulation)
+tab_names = class_list + ["Dependency Structure", "Correlated Simulations"]
 tabs = st.tabs(tab_names)
 
 # Tests dans les onglets de résultats
@@ -118,9 +116,6 @@ for i, template in enumerate(tests_results_templates):
                 calibrated_params = model_temp.calibration(df_temp)
                 
                 # Stocker les paramètres calibrés
-                calibrated_parameters[template.asset_class] = calibrated_params.copy()
-                
-                # Stocker les paramètres calibrés pour l'onglet Dependency Structure
                 calibrated_parameters[template.asset_class] = calibrated_params.copy()
             
             '''
@@ -170,12 +165,54 @@ for i, template in enumerate(tests_results_templates):
             st.warning(f"⚠️ No data uploaded for {class_list[i]}.")
             st.info("Please upload calibration data in the sidebar to see results.")
 
-# Onglet Dependency Structure (dernier onglet)
-with tabs[-1]:
-    render_dependency_tab(
+# Onglet Dependency Structure (avant-dernier onglet)
+with tabs[-2]:
+    # Render et stocker la matrice de corrélation dans session_state
+    final_correlation_matrix = render_dependency_tab(
         models_ready=models_ready,
         selected_models=selected_models,
         nb_weiner_dict=NB_WEINER,
-        calibrated_parameters=calibrated_parameters,  # Passer les paramètres calibrés
-        empirical_corr_df=None  # Utilise les valeurs par défaut
+        calibrated_parameters=calibrated_parameters,
+        empirical_corr_df=None
     )
+    
+    # Stocker la matrice finale dans session_state pour l'onglet Simulation
+    if final_correlation_matrix is not None:
+        st.session_state['final_correlation_matrix'] = final_correlation_matrix
+
+# Onglet Correlated Simulations (dernier onglet)
+with tabs[-1]:
+    # Préparer le dictionnaire des modèles avec leurs paramètres
+    models_dict_for_simulation = {}
+    for asset_class in required_classes:
+        if asset_class in calibrated_parameters:
+            models_dict_for_simulation[asset_class] = {
+                'model_name': selected_models[asset_class],
+                'params': calibrated_parameters[asset_class]
+            }
+    
+    # Récupérer la matrice de corrélation depuis session_state
+    correlation_matrix = st.session_state.get('final_correlation_matrix', None)
+    
+    # Importer le CorrelationManager pour le passer à la simulation
+    from scripts.correlation_manager import CorrelationManager
+    
+    if correlation_matrix is not None and models_dict_for_simulation:
+        # Créer une instance de CorrelationManager
+        corr_manager = CorrelationManager(
+            model_types=selected_models,
+            nb_weiner_dict=NB_WEINER,
+            calibrated_parameters=calibrated_parameters
+        )
+        
+        # Render l'onglet de simulation
+        render_simulation_tab(
+            models_dict=models_dict_for_simulation,
+            correlation_matrix=correlation_matrix,
+            corr_manager=corr_manager,
+            T=T,
+            N=N,
+            rfr=rfr_temp
+        )
+    else:
+        st.info("⏳ Please complete the Dependency Structure configuration first to enable simulations.")
