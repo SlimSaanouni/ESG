@@ -431,12 +431,12 @@ def _render_export_section(test_results, asset_classes, metadata):
     
     # Créer un rapport complet
     report_lines = []
-    report_lines.append(f"MARTINGALITY TEST REPORT")
-    report_lines.append(f"=" * 50)
-    report_lines.append(f"Seed: {metadata['seed']}")
-    report_lines.append(f"Simulations: {metadata['N']}")
-    report_lines.append(f"Horizon: {metadata['T']} years")
-    report_lines.append(f"Generated: {metadata['timestamp']}")
+    report_lines.append("MARTINGALITY TEST REPORT")
+    report_lines.append("=" * 50)
+    report_lines.append("Seed: {metadata['seed']}")
+    report_lines.append("Simulations: {metadata['N']}")
+    report_lines.append("Horizon: {metadata['T']} years")
+    report_lines.append("Generated: {metadata['timestamp']}")
     report_lines.append("")
     report_lines.append("RESULTS BY ASSET CLASS")
     report_lines.append("-" * 50)
@@ -448,10 +448,10 @@ def _render_export_section(test_results, asset_classes, metadata):
         if result is None:
             report_lines.append("  Status: Error or not tested")
         elif result['type'] == 'index':
-            report_lines.append(f"  Type: Index model")
+            report_lines.append("  Type: Index model")
             report_lines.append(f"  Pass Rate: {result['pass_rate']:.2%}")
         elif result['type'] == 'price':
-            report_lines.append(f"  Type: Price model")
+            report_lines.append("  Type: Price model")
             report_lines.append(f"  Deflator Pass Rate: {result['deflator_pass_rate']:.2%}")
             report_lines.append(f"  ZC Pass Rate: {result['zc_pass_rate']:.2%}")
     

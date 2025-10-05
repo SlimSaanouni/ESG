@@ -5,7 +5,6 @@ Module de gestion de la structure de dépendance et des corrélations entre mod�
 import numpy as np
 import pandas as pd
 from scipy.linalg import eigh
-from scipy.optimize import minimize
 
 
 class CorrelationManager:
@@ -101,7 +100,6 @@ class CorrelationManager:
         """
         mapping = self.brownian_mapping[asset_class]
         start = mapping['start_idx']
-        end = mapping['end_idx']
         nb_brownians = mapping['nb_brownians']
         
         if nb_brownians == 2:

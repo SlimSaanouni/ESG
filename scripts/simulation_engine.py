@@ -112,7 +112,6 @@ class CorrelatedSimulationEngine:
             mapping = brownian_mapping[asset_class]
             start_idx = mapping['start_idx']
             end_idx = mapping['end_idx']
-            nb_brownians = mapping['nb_brownians']
             
             # Extraire les browniens pour ce modèle
             model_brownians = []
@@ -126,12 +125,12 @@ class CorrelatedSimulationEngine:
             if model_name in ['Black-Scholes', 'Dupire', 'Heston']:
                 # Modèles d'indices
                 trajectories = self._run_index_model(
-                    model, model_name, model_params, model_brownians, dt, S0
+                    model_name, model_params, model_brownians, dt, S0
                 )
             elif model_name in ['Vasicek', 'G2++']:
                 # Modèles de taux
                 trajectories = self._run_rate_model(
-                    model, model_name, model_params, model_brownians, dt
+                    model_name, model_params, model_brownians, dt
                 )
             else:
                 raise NotImplementedError(f"Le modèle {model_name} n'est pas supporté")
@@ -151,7 +150,7 @@ class CorrelatedSimulationEngine:
         
         return self.trajectories
     
-    def _run_index_model(self, model, model_name, params, brownians, dt, S0):
+    def _run_index_model(self, model_name, params, brownians, dt, S0):
         """
         Lance la projection pour un modèle d'indice
         
@@ -192,7 +191,6 @@ class CorrelatedSimulationEngine:
             W = brownians[0]
             
             for t in range(1, nb_steps + 1):
-                current_time = t * dt
                 current_prices = paths[:, t-1]
                 
                 # Volatilité locale
@@ -208,7 +206,6 @@ class CorrelatedSimulationEngine:
             kappa = params['kappa']
             theta = params['theta']
             sigma_v = params['sigma']
-            rho = params['rho']
             
             W1 = brownians[0]  # Brownien du prix
             W2 = brownians[1]  # Brownien de la variance
@@ -243,7 +240,7 @@ class CorrelatedSimulationEngine:
         
         return df_paths
     
-    def _run_rate_model(self, model, model_name, params, brownians, dt):
+    def _run_rate_model(self, model_name, params, brownians, dt):
         """
         Lance la projection pour un modèle de taux
         
