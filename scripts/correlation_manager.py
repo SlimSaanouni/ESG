@@ -196,18 +196,18 @@ class CorrelationManager:
         
         # Algorithme de Higham
         max_iterations = 100
-        tolerance = 1e-8
+        tolerance = 1e-9
+        epsilon = 1e-8
         
         X = corr_matrix.copy()
         Y = corr_matrix.copy()
         
         for iteration in range(max_iterations):
             # Projection sur les matrices PSD
-            R = Y - X
             eigenvalues, eigenvectors = eigh(Y)
             
             # Mettre les valeurs propres négatives à zéro
-            eigenvalues[eigenvalues < 0] = 0
+            eigenvalues[eigenvalues < 0] = epsilon
             
             # Reconstruction
             X = eigenvectors @ np.diag(eigenvalues) @ eigenvectors.T
