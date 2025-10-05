@@ -4,7 +4,6 @@ Module de génération de trajectoires corrélées pour les modèles financiers
 
 import numpy as np
 import pandas as pd
-from scripts.class_model import Model
 
 
 class CorrelatedSimulationEngine:
@@ -117,10 +116,7 @@ class CorrelatedSimulationEngine:
             model_brownians = []
             for i in range(start_idx, end_idx):
                 model_brownians.append(self.brownian_motions[i])
-            
-            # Créer l'instance du modèle
-            model = Model(name=model_name)
-            
+                        
             # Lancer la projection selon le type de modèle
             if model_name in ['Black-Scholes', 'Dupire', 'Heston']:
                 # Modèles d'indices
