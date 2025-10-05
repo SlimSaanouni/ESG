@@ -58,7 +58,7 @@ class TestsResultsTemplates:
         self.asset_class = asset_class
         self.model_name = model_name
 
-    def display_calibrated_ir(self, rfr, spot):
+    def display_calibrated_ir(self, rfr, spot, key_prefix=""):
         """Affiche la courbe des taux calibrée"""
         time_idx = spot.index
         observed_rfr = pd.Series(rfr(time_idx), index=time_idx)
@@ -85,9 +85,9 @@ class TestsResultsTemplates:
             showlegend=True,
             hovermode='x unified'
         )
-        st.plotly_chart(fig1, use_container_width=True)
+        st.plotly_chart(fig1, use_container_width=True, key=f"{key_prefix}_calibrated_ir")
 
-    def render_interest_rates(self, martingality_dict):
+    def render_interest_rates(self, martingality_dict, key_prefix=""):
         """Affiche les résultats des tests pour les modèles de taux"""
         deflator_df = martingality_dict["Deflator"]
         zc_price_df = martingality_dict["ZC_Price"]
@@ -159,15 +159,15 @@ class TestsResultsTemplates:
         )
 
         # Affichage
-        st.plotly_chart(fig1, use_container_width=True)
+        st.plotly_chart(fig1, use_container_width=True, key=f"{key_prefix}_deflator")
         with st.expander("📊 View Deflator Data"):
             st.dataframe(deflator_df, use_container_width=True)
 
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, use_container_width=True, key=f"{key_prefix}_zc")
         with st.expander("📊 View Zero-Coupon Data"):
             st.dataframe(zc_price_df, use_container_width=True)
 
-    def render_index(self, df, martingality_df):
+    def render_index(self, df, martingality_df, key_prefix=""):
         """Affiche les résultats des simulations pour les modèles d'indices"""
         
         # Graphique des simulations (seulement les 50 premières pour la lisibilité)
@@ -230,8 +230,8 @@ class TestsResultsTemplates:
         )
         
         # Affichage
-        st.plotly_chart(fig1, use_container_width=True)
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig1, use_container_width=True, key=f"{key_prefix}_simulations")
+        st.plotly_chart(fig2, use_container_width=True, key=f"{key_prefix}_martingality")
         
         with st.expander("📊 View Martingality Test Data"):
             st.dataframe(martingality_df, use_container_width=True)

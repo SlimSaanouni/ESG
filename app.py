@@ -6,6 +6,7 @@ from scripts.class_test import Martingality_test
 from scripts.class_template import RiskFreeRates, InputsTemplate, TestsResultsTemplates, class_list
 from scripts.dependency_tab import render_dependency_tab
 from scripts.simulation_tab import render_simulation_tab
+from scripts.test_tab import render_tests_tab
 
 N_COL_MAX   = 3
 nb_class    = len(class_list)
@@ -89,8 +90,8 @@ calibrated_parameters = {}
 '''
 ## Results
 '''
-# Création des onglets (ajout des onglets Dependency Structure et Simulation)
-tab_names = class_list + ["Dependency Structure", "Correlated Simulations"]
+# Création des onglets (ajout de l'onglet Tests)
+tab_names = class_list + ["Dependency Structure", "Correlated Simulations", "Martingality Tests"]
 tabs = st.tabs(tab_names)
 
 # Tests dans les onglets de résultats
@@ -110,6 +111,9 @@ for i, template in enumerate(tests_results_templates):
             model_name_temp = dict_simulations[template.asset_class]['model_name']
             type_temp = MODEL_TYPE[model_name_temp]
             
+            # Créer un préfixe de clé unique
+            key_prefix = f"calib_{template.asset_class.replace(' ', '_').lower()}"
+
             # Calibration of the model
             with st.spinner(f"Calibrating {model_name_temp} model..."):
                 model_temp = Model(name=model_name_temp)
@@ -136,13 +140,13 @@ for i, template in enumerate(tests_results_templates):
                         mart_test_temp = Martingality_test(type=type_temp)
                         martingality_df_temp = mart_test_temp.martingality_calcs(proj_df_temp, rfr_temp, 0.05)
                         # Display of results
-                        template.render_index(proj_df_temp, martingality_df_temp)
+                        template.render_index(proj_df_temp, martingality_df_temp, key_prefix)
                     
                     case 'Dupire':
                         proj_df_temp = model_temp.dupire_projection(calibrated_params, T, N, rfr_temp)
                         mart_test_temp = Martingality_test(type=type_temp)
                         martingality_df_temp = mart_test_temp.martingality_calcs(proj_df_temp, rfr_temp, 0.05)
-                        template.render_index(proj_df_temp, martingality_df_temp)
+                        template.render_index(proj_df_temp, martingality_df_temp, key_prefix)
                     
                     case 'Heston':
                         proj_df_temp = model_temp.heston_projection(calibrated_params, T, N, rfr_temp)
@@ -150,23 +154,23 @@ for i, template in enumerate(tests_results_templates):
                         mart_test_temp = Martingality_test(type=type_temp)
                         martingality_df_temp = mart_test_temp.martingality_calcs(proj_df_temp, rfr_temp, 0.05)
                         # Display of results
-                        template.render_index(proj_df_temp, martingality_df_temp)
+                        template.render_index(proj_df_temp, martingality_df_temp, key_prefix)
                     
                     case 'Vasicek':
                         model_spot_curve = model_temp.vasicek_spot_curve(T)
-                        template.display_calibrated_ir(rfr_temp, model_spot_curve)
+                        template.display_calibrated_ir(rfr_temp, model_spot_curve, key_prefix)
                         proj_dict_temp = model_temp.vasicek_projection(calibrated_params, T, N, rfr_temp)
                         # Martingality test
                         mart_test_temp = Martingality_test(type=type_temp)
                         martingality_dict_temp = mart_test_temp.martingality_calcs(proj_dict_temp, model_spot_curve, 0.05)
                         # Display of results
-                        template.render_interest_rates(martingality_dict_temp)
+                        template.render_interest_rates(martingality_dict_temp, key_prefix)
         else:
             st.warning(f"⚠️ No data uploaded for {class_list[i]}.")
             st.info("Please upload calibration data in the sidebar to see results.")
 
-# Onglet Dependency Structure (avant-dernier onglet)
-with tabs[-2]:
+# Onglet Dependency Structure (avant-avant-dernier onglet)
+with tabs[-3]:
     # Render et stocker la matrice de corrélation dans session_state
     final_correlation_matrix = render_dependency_tab(
         models_ready=models_ready,
@@ -180,8 +184,8 @@ with tabs[-2]:
     if final_correlation_matrix is not None:
         st.session_state['final_correlation_matrix'] = final_correlation_matrix
 
-# Onglet Correlated Simulations (dernier onglet)
-with tabs[-1]:
+# Onglet Correlated Simulations (avant-dernier onglet)
+with tabs[-2]:
     # Préparer le dictionnaire des modèles avec leurs paramètres
     models_dict_for_simulation = {}
     for asset_class in required_classes:
@@ -216,3 +220,27 @@ with tabs[-1]:
         )
     else:
         st.info("⏳ Please complete the Dependency Structure configuration first to enable simulations.")
+
+# Onglet Martingality Tests (dernier onglet)
+with tabs[-1]:
+    # Préparer le dictionnaire des modèles avec leurs paramètres
+    models_dict_for_tests = {}
+    for asset_class in required_classes:
+        if asset_class in calibrated_parameters:
+            models_dict_for_tests[asset_class] = {
+                'model_name': selected_models[asset_class],
+                'params': calibrated_parameters[asset_class]
+            }
+    
+    # Récupérer la matrice de corrélation depuis session_state
+    correlation_matrix = st.session_state.get('final_correlation_matrix', None)
+    
+    if models_dict_for_tests:
+        # Render l'onglet de tests
+        render_tests_tab(
+            models_dict=models_dict_for_tests,
+            rfr=rfr_temp,
+            correlation_matrix=correlation_matrix
+        )
+    else:
+        st.info("⏳ Please calibrate all models and run simulations first to enable tests.")
