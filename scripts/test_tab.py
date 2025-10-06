@@ -265,7 +265,7 @@ def _render_empirical_correlation_analysis(trajectories, models_dict, theoretica
     """
     st.markdown("Compare theoretical correlations with empirical correlations from generated trajectories.")
     
-    # Extraire les séries de returns pour chaque asset class
+    # Extraire les DataFrames de returns pour chaque asset class
     returns_dict = {}
     
     for asset_class, traj_data in trajectories.items():
@@ -278,36 +278,75 @@ def _render_empirical_correlation_analysis(trajectories, models_dict, theoretica
         else:
             df = traj_data
         
-        # Calculer les returns (log returns)
+        # Calculer les returns (log returns) pour chaque simulation
         import numpy as np
         returns = df.apply(lambda x: np.log(x / x.shift(1)), axis=1).dropna(axis=1)
         
-        # Moyenne des returns sur toutes les simulations
-        avg_returns = returns.mean(axis=0)
-        returns_dict[asset_class] = avg_returns
+        # Stocker le DataFrame complet des returns (N simulations × T-1 périodes)
+        returns_dict[asset_class] = returns
     
-    # Créer un DataFrame des returns
-    returns_df = pd.DataFrame(returns_dict)
+    # Nombre de simulations
+    N = list(returns_dict.values())[0].shape[0]
     
-    # Calculer la corrélation empirique
-    empirical_corr = returns_df.corr()
+    # Liste des asset classes
+    asset_classes = list(returns_dict.keys())
+    n_assets = len(asset_classes)
+    
+    # Initialiser une liste pour stocker les matrices de corrélation de chaque simulation
+    corr_matrices = []
+    
+    # Pour chaque simulation, calculer la matrice de corrélation
+    for sim_idx in range(1, N + 1):  # Les indices vont de 1 à N
+        # Extraire les returns de cette simulation pour tous les assets
+        sim_returns = {}
+        for asset_class in asset_classes:
+            sim_returns[asset_class] = returns_dict[asset_class].loc[sim_idx]
+        
+        # Créer un DataFrame avec les returns de cette simulation
+        sim_returns_df = pd.DataFrame(sim_returns)
+        
+        # Calculer la corrélation pour cette simulation
+        sim_corr = sim_returns_df.corr()
+        
+        # Stocker
+        corr_matrices.append(sim_corr)
+    
+    # Calculer la moyenne des matrices de corrélation
+    empirical_corr = pd.DataFrame(
+        np.mean([corr.values for corr in corr_matrices], axis=0),
+        index=asset_classes,
+        columns=asset_classes
+    )
+    
+    # Calculer aussi l'écart-type des corrélations pour chaque paire
+    std_corr = pd.DataFrame(
+        np.std([corr.values for corr in corr_matrices], axis=0),
+        index=asset_classes,
+        columns=asset_classes
+    )
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("**Empirical Correlation (from trajectories)**")
+        st.markdown("**Empirical Correlation (mean across simulations)**")
         st.dataframe(
             empirical_corr.style.background_gradient(cmap='RdYlGn', vmin=-1, vmax=1).format("{:.3f}"),
             use_container_width=True
         )
+        
+        # Afficher aussi l'écart-type
+        with st.expander("📊 View Standard Deviation of Correlations"):
+            st.dataframe(
+                std_corr.style.background_gradient(cmap='Reds', vmin=0, vmax=0.2).format("{:.4f}"),
+                use_container_width=True
+            )
+            st.caption("Standard deviation of correlations across simulations. Lower values indicate more stable correlations.")
     
     with col2:
         if theoretical_corr is not None:
             st.markdown("**Theoretical Correlation (asset level)**")
             
             # Extraire la sous-matrice pour les asset classes
-            asset_classes = list(trajectories.keys())
-            
             # Créer une matrice de corrélation théorique au niveau des assets
             # En moyennant les corrélations des browniens de chaque asset
             from scripts.correlation_manager import CorrelationManager
@@ -385,7 +424,56 @@ def _render_empirical_correlation_analysis(trajectories, models_dict, theoretica
             st.info("ℹ️ Good match between empirical and theoretical correlations.")
         else:
             st.warning("⚠️ Noticeable difference between empirical and theoretical correlations. Consider increasing the number of simulations.")
-
+        
+        # Afficher un histogramme des corrélations empiriques vs théoriques
+        with st.expander("📊 View Correlation Distribution"):
+            import plotly.graph_objects as go
+            
+            # Extraire les corrélations hors diagonale
+            empirical_values = []
+            theoretical_values = []
+            
+            for i, asset_i in enumerate(asset_classes):
+                for j, asset_j in enumerate(asset_classes):
+                    if i < j:  # Triangle supérieur seulement
+                        empirical_values.append(empirical_corr.loc[asset_i, asset_j])
+                        theoretical_values.append(asset_level_corr.loc[asset_i, asset_j])
+            
+            fig = go.Figure()
+            
+            fig.add_trace(go.Scatter(
+                x=theoretical_values,
+                y=empirical_values,
+                mode='markers',
+                marker=dict(size=12, color='blue', opacity=0.6),
+                name='Correlations',
+                text=[f"{asset_classes[i]} vs {asset_classes[j]}" 
+                      for i in range(len(asset_classes)) 
+                      for j in range(i+1, len(asset_classes))],
+                hovertemplate='<b>%{text}</b><br>Theoretical: %{x:.3f}<br>Empirical: %{y:.3f}<extra></extra>'
+            ))
+            
+            # Ligne y=x (corrélation parfaite)
+            min_val = min(min(theoretical_values), min(empirical_values))
+            max_val = max(max(theoretical_values), max(empirical_values))
+            fig.add_trace(go.Scatter(
+                x=[min_val, max_val],
+                y=[min_val, max_val],
+                mode='lines',
+                line=dict(color='red', dash='dash'),
+                name='Perfect Match (y=x)'
+            ))
+            
+            fig.update_layout(
+                title='Empirical vs Theoretical Correlations',
+                xaxis_title='Theoretical Correlation',
+                yaxis_title='Empirical Correlation',
+                showlegend=True,
+                height=400
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
 
 def _render_export_section(test_results, asset_classes, metadata):
     """
