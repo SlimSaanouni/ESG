@@ -272,9 +272,9 @@ def _render_empirical_correlation_analysis(trajectories, models_dict, theoretica
         if isinstance(traj_data, dict):
             # Pour les modèles de taux, utiliser le déflateur
             if "Deflator" in traj_data:
-                df = traj_data["Deflator"]
+                df = 1 / traj_data["Deflator"]
             else:
-                df = traj_data[1]  # Premier ZC
+                df = 1 / traj_data[1]  # Premier ZC
         else:
             df = traj_data
         
@@ -473,7 +473,7 @@ def _render_empirical_correlation_analysis(trajectories, models_dict, theoretica
             )
             
             st.plotly_chart(fig, use_container_width=True)
-            
+
 
 def _render_export_section(test_results, asset_classes, metadata):
     """

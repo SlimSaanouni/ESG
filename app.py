@@ -70,6 +70,15 @@ with st.sidebar:
             output_temp = template.render(T, rfr_temp)
             dict_simulations[template.asset_class] = output_temp
 
+    st.header("📋 Financial parameters")
+    st.markdown("---")
+    re_vol_ratio    = st.number_input("Real Estate volatility ratio (%. of Equity volatility)",
+                                      min_value=0, max_value=100, value=50, key="re_vol_ratio") / 100
+    dividend_rate   = st.number_input("Dividend yield (%)", min_value=0, max_value=100, value=2, key="div_rate") / 100
+    rental_rate     = st.number_input("Rental yield (%)", min_value=0, max_value=100, value=2, key="rent_rate") / 100
+    
+
+
 # Vérification de l'état des modèles calibrés
 # Pour la dependency structure, on a besoin des 3 classes principales
 required_classes = ["Interest rates", "Equity", "Real Estate"]
