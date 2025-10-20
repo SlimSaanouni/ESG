@@ -127,6 +127,9 @@ for i, template in enumerate(tests_results_templates):
             with st.spinner(f"Calibrating {model_name_temp} model..."):
                 model_temp = Model(name=model_name_temp)
                 calibrated_params = model_temp.calibration(df_temp)
+                if template.asset_class == "Real Estate":
+                    # Ajuster la volatilité selon le ratio spécifié
+                    calibrated_params['sigma'] *= re_vol_ratio
                 
                 # Stocker les paramètres calibrés
                 calibrated_parameters[template.asset_class] = calibrated_params.copy()
