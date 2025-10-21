@@ -7,6 +7,7 @@ from scripts.class_template import RiskFreeRates, InputsTemplate, TestsResultsTe
 from scripts.dependency_tab import render_dependency_tab
 from scripts.simulation_tab import render_simulation_tab
 from scripts.test_tab import render_tests_tab
+from scripts.tab_export import render_export_tab  # NOUVEAU
 
 N_COL_MAX   = 3
 nb_class    = len(class_list)
@@ -99,8 +100,8 @@ calibrated_parameters = {}
 '''
 ## Results
 '''
-# Création des onglets (ajout de l'onglet Tests)
-tab_names = class_list + ["Dependency Structure", "Correlated Simulations", "Martingality Tests"]
+# Création des onglets (AJOUT de l'onglet Export)
+tab_names = class_list + ["Dependency Structure", "Correlated Simulations", "Martingality Tests", "Export"]
 tabs = st.tabs(tab_names)
 
 # Tests dans les onglets de résultats
@@ -181,8 +182,8 @@ for i, template in enumerate(tests_results_templates):
             st.warning(f"⚠️ No data uploaded for {class_list[i]}.")
             st.info("Please upload calibration data in the sidebar to see results.")
 
-# Onglet Dependency Structure (avant-avant-dernier onglet)
-with tabs[-3]:
+# Onglet Dependency Structure (4ème avant la fin)
+with tabs[-4]:
     # Render et stocker la matrice de corrélation dans session_state
     final_correlation_matrix = render_dependency_tab(
         models_ready=models_ready,
@@ -196,8 +197,8 @@ with tabs[-3]:
     if final_correlation_matrix is not None:
         st.session_state['final_correlation_matrix'] = final_correlation_matrix
 
-# Onglet Correlated Simulations (avant-dernier onglet)
-with tabs[-2]:
+# Onglet Correlated Simulations (3ème avant la fin)
+with tabs[-3]:
     # Préparer le dictionnaire des modèles avec leurs paramètres
     models_dict_for_simulation = {}
     for asset_class in required_classes:
@@ -233,8 +234,8 @@ with tabs[-2]:
     else:
         st.info("⏳ Please complete the Dependency Structure configuration first to enable simulations.")
 
-# Onglet Martingality Tests (dernier onglet)
-with tabs[-1]:
+# Onglet Martingality Tests (2ème avant la fin)
+with tabs[-2]:
     # Préparer le dictionnaire des modèles avec leurs paramètres
     models_dict_for_tests = {}
     for asset_class in required_classes:
@@ -256,3 +257,7 @@ with tabs[-1]:
         )
     else:
         st.info("⏳ Please calibrate all models and run simulations first to enable tests.")
+
+# Onglet Export (dernier onglet - NOUVEAU)
+with tabs[-1]:
+    render_export_tab()
