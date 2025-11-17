@@ -23,6 +23,8 @@ class OutputGenerator:
         equity_index: pd.DataFrame,
         real_estate_index: pd.DataFrame,
         deflator: pd.DataFrame,
+        oat10_prices: pd.DataFrame,
+        oat1_prices: pd.DataFrame,
         template_path: str
     ):
         """
@@ -46,6 +48,10 @@ class OutputGenerator:
             DataFrame des indices immobilier (N × T+1), base 100
         deflator : pd.DataFrame
             DataFrame du déflateur Vasicek (N × T+1)
+        oat10_prices : pd.DataFrame
+            DataFrame des prix OAT10 (N × T+1)
+        oat1_prices : pd.DataFrame
+            DataFrame des prix OAT1 (N × T+1)
         template_path : str
             Chemin vers le template CSV avec colonnes: CLASS;MEASURE;OS_TERM;0
         """
